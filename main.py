@@ -1,6 +1,6 @@
 from base_skill.skill import *
 from .strings import *
-from .dbhelper import get_name
+from .dbhelper import get_name, add_wtf, put_like, get_likes
 
 
 handler = CommandHandler()
@@ -52,8 +52,15 @@ def more(res, req, session):
     save_last_res(res, session)
 
 
+@handler.command(words=tkn(WORDS_LIKED), states=State.MAIN_MENU)
+def liked(res, req, session):
+    show_likes(res, req, session)
+    default_buttons(res, session)
+
+
 @handler.command(words=tkn(WORDS_LIKE), states=State.NAME)
 def like(res, req, session):
+    put_like(req.user_id, session['animal'], session['name'])
     show_name(res, session, like=True)
     default_buttons(res, session)
 
@@ -74,8 +81,11 @@ def ability(res, req, session):
 
 @handler.command(words=tkn(WORDS_REPEAT), states=State.ALL)
 def repeat(res, req, session):
-    res.text = session.get('last_text', TEXT_FORGOT)
-    default_buttons(res, session)
+    if session['state'] == State.NAME:
+        show_name(res, session, change=False)
+    else:
+        res.text = session.get('last_text', TEXT_FORGOT)
+        default_buttons(res, session)
 
 
 @handler.command(words=tkn(WORDS_EXIT), states=State.ALL)
@@ -91,23 +101,25 @@ def exit_(res, req, session):
 
 
 @handler.undefined_command(states=State.ALL)
-def wtf(req, res, session):
-    res.text = txt(TEXT_WTF)
-    # TODO: write req.text in wtf.txt
+def wtf(res, req, session):
+    res.text = txt(TEXT_WTF.get(session['state'], 'Добавь обработку'))
+    add_wtf(res, req, session)
+    default_buttons(res, session)
 
 
-def show_name(res, session, intro=False, like=False):
+def show_name(res, session, intro=False, like=False, change=True):
     session['state'] = State.NAME
     animal, sex = session['animal'], session['sex']
-    x = txt(TEXT_NAME[f'{animal}_{sex}'])\
-        .format(get_name(animal, sex))
-    if intro:
-        res.text = txt(TEXT_NAME_INTRO) + x
-    elif like:
-        res.text = txt(TEXT_LIKE) + x
-    else:
-        res.text = x
+    if change:
+        session['name'] = get_name(animal, sex)
+    x = txt(TEXT_NAME[f'{animal}_{sex}']).format(session['name'])
+    res.text = txt(TEXT_NAME_INTRO if intro else TEXT_LIKE if like else '') + x
     default_buttons(res, session)
+
+
+def show_likes(res, req, session):
+    likes = list(map(lambda x: x[0], get_likes(req.user_id)))
+    res.text = txt(TEXT_LIKED) + ', '.join(likes)
 
 
 def default_buttons(res, session):
